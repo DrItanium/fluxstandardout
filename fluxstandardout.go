@@ -21,6 +21,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"github.com/DrItanium/neuron"
@@ -30,9 +31,13 @@ import (
 
 var host = flag.String("host", "", "host to connect to")
 var port = flag.Uint("port", 2000, "port to connect to")
+var brate = flag.Uint("brate", 1, "number of bytes to write at a given time over the connection")
 
 func main() {
 	flag.Parse()
+	if *brate == 0 {
+		log.Fatal("Can't send zero bytes! Brate can't be zero")
+	}
 	str := fmt.Sprintf("%s:%d", *host, *port)
 	conn, err := net.Dial("tcp", str)
 	if err != nil {
@@ -40,15 +45,22 @@ func main() {
 	}
 	defer conn.Close()
 	input := neuron.NewStandardInReader()
+	contents := make([]byte, *brate)
+	var b bytes.Buffer
 	for {
-		datum, err := input.ReadByte()
+		count, err := input.Read(contents)
 		if err != nil {
 			break
 		}
-		_, err2 := fmt.Fprintf(conn, "%c", datum)
-		if err2 != nil {
-			log.Print(err)
+		if count == 0 {
 			break
+		} else {
+			b.Write(contents)
+			_, err2 := b.WriteTo(conn)
+			if err2 != nil {
+				log.Print(err)
+				break
+			}
 		}
 	}
 }
